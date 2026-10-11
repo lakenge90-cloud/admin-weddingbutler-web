@@ -77,7 +77,7 @@ export default function Header({
         />
       </div>
       <div style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: 14 }}>
-        <span style={{ fontSize: 13.5, color: "#6E646A" }}>운영팀 {userName}</span>
+        <span style={{ fontSize: 13.5, color: "#6E646A" }}>{userName}</span>
         <div
           style={{
             width: 36, height: 36, borderRadius: "50%", background: "#F5E4EC", color: "#8A3F61",
