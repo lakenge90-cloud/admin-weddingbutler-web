@@ -63,7 +63,7 @@ export default function LoginForm() {
               value={username}
               onChange={(e) => { setUsername(e.target.value); setError(""); }}
               onKeyDown={onKeyDown}
-              placeholder="admin"
+              placeholder="아이디"
               style={{ border: 0, background: "#FFFFFF", borderRadius: 14, padding: "15px 16px", fontSize: 14.5, color: "#1E1A1C" }}
             />
           </label>
@@ -114,9 +114,6 @@ export default function LoginForm() {
           >
             {loading ? "로그인 중…" : "로그인"}
           </button>
-          <p style={{ margin: "18px 0 0", fontSize: 12.5, color: "#A79BA1", lineHeight: 1.6 }}>
-            데모 계정 · 아이디 admin / 비밀번호 wb1234
-          </p>
         </form>
       </div>
     </div>

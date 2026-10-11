@@ -103,9 +103,9 @@ const RESERVATIONS = [
 async function main() {
   const passwordHash = await bcrypt.hash("wb1234", 10);
   await prisma.adminUser.upsert({
-    where: { username: "admin" },
+    where: { username: "thisriver" },
     update: {},
-    create: { username: "admin", name: "이강", passwordHash },
+    create: { username: "thisriver", name: "이강", passwordHash },
   });
 
   for (const r of RESERVATIONS) {
