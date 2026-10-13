@@ -131,6 +131,7 @@ export default async function ReservationsPage({
 
       {selected && (
         <ReservationDetail
+          key={selected.id}
           reservation={buildDetail(selected)}
           backHref={`/reservations?${listParams.toString()}`}
           className={explicitlyOpened ? undefined : "wb-detail-pane-closed"}
