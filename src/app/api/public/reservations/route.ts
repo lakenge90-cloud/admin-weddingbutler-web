@@ -139,7 +139,7 @@ export async function POST(req: NextRequest) {
       venueLabel: created.venueLabel,
       guestsLabel: created.guestsLabel,
       requestedPlan: created.requestedPlan,
-      planAmount: meta.base,
+      planAmount: total,
       paidAmount: created.paidAmount,
       confirmAmount: total,
       balanceAmount: onsite,
