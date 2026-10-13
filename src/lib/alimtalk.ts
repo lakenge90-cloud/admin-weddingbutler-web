@@ -59,6 +59,13 @@ export function paidAmountWithOnsite(paidAmount: number, balanceAmount: number):
     : `${paid}원 (현장결제 0원, 하객 수 초과 시 변동)`;
 }
 
+/** 예약 확정 알림톡의 "현장결제금액"(#{balanceAmount}) 값 — 전액결제면 하객 수 초과 시 변동 안내, 아니면 현금 결제 안내. */
+export function onsiteAmountText(balanceAmount: number): string {
+  return balanceAmount > 0
+    ? `${balanceAmount.toLocaleString("ko-KR")}원 (현금)`
+    : "0원 (하객 수 초과 시 변동)";
+}
+
 export async function sendConfirmAlimtalk(payload: AlimtalkFields): Promise<{ sent: boolean; detail: string }> {
   const svc = client();
   const from = process.env.SOLAPI_SENDER_PHONE;
@@ -74,7 +81,7 @@ export async function sendConfirmAlimtalk(payload: AlimtalkFields): Promise<{ se
       kakaoOptions: {
         pfId: process.env.SOLAPI_PF_ID!,
         templateId,
-        variables: buildVariables(payload),
+        variables: { ...buildVariables(payload), "#{balanceAmount}": onsiteAmountText(payload.balanceAmount) },
       },
     });
     logSendResult(payload.reservationId, result);
