@@ -105,7 +105,7 @@ export async function sendNewReservationAlimtalk(payload: AlimtalkFields): Promi
   }
 
   const variables = buildVariables(payload);
-  const customerVariables = {
+  const customerVariables: Record<string, string> = {
     ...variables,
     "#{paidAmount}": paidAmountWithOnsite(payload.paidAmount, payload.balanceAmount),
   };
