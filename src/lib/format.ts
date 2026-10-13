@@ -2,8 +2,12 @@ export function pad2(n: number) {
   return String(n).padStart(2, "0");
 }
 
+const KST_OFFSET_MS = 9 * 60 * 60 * 1000;
+
+// 서버(Vercel)는 UTC로 돌기 때문에 getHours()를 그대로 쓰면 9시간 이르게 보인다 — 한국 시간으로 맞춘다.
 export function formatStamp(d: Date) {
-  return `${pad2(d.getMonth() + 1)}.${pad2(d.getDate())} ${pad2(d.getHours())}:${pad2(d.getMinutes())}`;
+  const k = new Date(d.getTime() + KST_OFFSET_MS);
+  return `${pad2(k.getUTCMonth() + 1)}.${pad2(k.getUTCDate())} ${pad2(k.getUTCHours())}:${pad2(k.getUTCMinutes())}`;
 }
 
 export function toNum(v: string | number) {
