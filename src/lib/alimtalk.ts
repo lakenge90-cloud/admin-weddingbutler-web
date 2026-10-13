@@ -50,11 +50,13 @@ function buildVariables(f: AlimtalkFields): Record<string, string> {
   };
 }
 
-/** 새 신규예약 템플릿(v2)의 #{onsiteText} — 전액결제면 0원에 초과 하객 안내, 아니면 현장 현금 결제 금액. */
-export function onsiteText(balanceAmount: number): string {
+/** 신규예약 고객 알림톡의 "결제금액" 값. 템플릿을 다시 검수받지 않으려고 기존 #{paidAmount} 값 뒤에
+ * 현장결제 안내를 붙인다 — 전액결제면 현장결제 0원(하객 수 초과 시 변동), 아니면 현장 현금 결제 금액. */
+export function paidAmountWithOnsite(paidAmount: number, balanceAmount: number): string {
+  const paid = paidAmount.toLocaleString("ko-KR");
   return balanceAmount > 0
-    ? `${balanceAmount.toLocaleString("ko-KR")}원 (현금 결제)`
-    : "0원 (하객 수 초과 시 변동)";
+    ? `${paid}원 (현장결제 ${balanceAmount.toLocaleString("ko-KR")}원, 현금)`
+    : `${paid}원 (현장결제 0원, 하객 수 초과 시 변동)`;
 }
 
 export async function sendConfirmAlimtalk(payload: AlimtalkFields): Promise<{ sent: boolean; detail: string }> {
@@ -90,9 +92,7 @@ export async function sendNewReservationAlimtalk(payload: AlimtalkFields): Promi
   const svc = client();
   const from = process.env.SOLAPI_SENDER_PHONE;
   const pfId = process.env.SOLAPI_PF_ID;
-  // v2 템플릿(#{onsiteText} 포함)이 카카오 검수를 통과해 등록되면 그것을 쓰고, 없으면 기존 템플릿.
-  const customerTemplateV2 = process.env.SOLAPI_TEMPLATE_NEW_CUSTOMER_V2;
-  const customerTemplateId = customerTemplateV2 || process.env.SOLAPI_TEMPLATE_NEW_CUSTOMER;
+  const customerTemplateId = process.env.SOLAPI_TEMPLATE_NEW_CUSTOMER;
   const staffTemplateId = process.env.SOLAPI_TEMPLATE_NEW_STAFF;
   const staffPhones = (process.env.SOLAPI_STAFF_PHONES ?? "")
     .split(",")
@@ -105,9 +105,10 @@ export async function sendNewReservationAlimtalk(payload: AlimtalkFields): Promi
   }
 
   const variables = buildVariables(payload);
-  const customerVariables = customerTemplateV2
-    ? { ...variables, "#{onsiteText}": onsiteText(payload.balanceAmount) }
-    : variables;
+  const customerVariables = {
+    ...variables,
+    "#{paidAmount}": paidAmountWithOnsite(payload.paidAmount, payload.balanceAmount),
+  };
 
   const messages = [
     {
