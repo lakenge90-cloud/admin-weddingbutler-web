@@ -22,6 +22,9 @@ function buildDetail(r: NonNullable<Awaited<ReturnType<typeof loadReservation>>>
     requestedPlan: r.requestedPlan,
     paidAmount: r.paidAmount,
     alimtalkLabel: r.alimtalkAt ? formatStamp(r.alimtalkAt) : "이력 없음",
+    cancel: r.status === "취소"
+      ? { reason: r.cancelReason, atLabel: r.cancelledAt ? formatStamp(r.cancelledAt) : "", refundAmount: r.refundAmount }
+      : null,
     recordStatus: recordStatusOf(r.recordLink?.status),
     notes: r.notes.map((n) => ({ id: n.id, when: formatStamp(n.createdAt), text: n.text })),
     confirm: {
@@ -54,7 +57,7 @@ export default async function ReservationsPage({
 }: {
   searchParams: { filter?: string; q?: string; id?: string };
 }) {
-  const filter = searchParams.filter && ["신규요청", "협의중", "확정"].includes(searchParams.filter) ? searchParams.filter : "전체";
+  const filter = searchParams.filter && ["신규요청", "협의중", "확정", "취소"].includes(searchParams.filter) ? searchParams.filter : "전체";
   const q = (searchParams.q ?? "").trim();
 
   const all = await prisma.reservation.findMany({ orderBy: { requestedAt: "desc" } });

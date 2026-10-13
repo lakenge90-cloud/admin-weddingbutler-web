@@ -8,7 +8,7 @@ import { BADGE } from "@/lib/badge";
 import { toNum } from "@/lib/format";
 import { useIsMobile } from "@/lib/useIsMobile";
 import { useToast } from "./ToastContext";
-import { confirmReservation, holdReservation, addNote, resendAlimtalk, saveConfirmFields } from "@/lib/actions";
+import { confirmReservation, holdReservation, addNote, resendAlimtalk, saveConfirmFields, cancelReservation } from "@/lib/actions";
 
 export interface DetailNote {
   id: string;
@@ -30,6 +30,7 @@ export interface DetailReservation {
   requestedPlan: string;
   paidAmount: number;
   alimtalkLabel: string;
+  cancel: { reason: string; atLabel: string; refundAmount: number } | null;
   recordStatus: "none" | "draft" | "published" | "revoked";
   notes: DetailNote[];
   confirm: {
@@ -64,6 +65,10 @@ export default function ReservationDetail({
   const showToast = useToast();
   const [isPending, startTransition] = useTransition();
   const [noteDraft, setNoteDraft] = useState("");
+  const [cancelOpen, setCancelOpen] = useState(false);
+  const [reasonType, setReasonType] = useState<"고객요청" | "직접입력">("고객요청");
+  const [customReason, setCustomReason] = useState("");
+  const [noPaymentMessage, setNoPaymentMessage] = useState<string | null>(null);
 
   const [fields, setFields] = useState({
     date: reservation.confirm.date,
@@ -97,6 +102,8 @@ export default function ReservationDetail({
 
   const badge = BADGE[reservation.status] ?? BADGE["신규요청"];
   const isConfirmed = reservation.status === "확정";
+  const isCancelled = reservation.status === "취소";
+  const cancelReason = reasonType === "고객요청" ? "고객요청" : customReason.trim();
 
   function field(key: keyof typeof fields) {
     return {
@@ -130,6 +137,28 @@ export default function ReservationDetail({
       const res = await addNote(reservation.id, noteDraft);
       if (res.ok) setNoteDraft("");
       showToast(res.message);
+    });
+  }
+
+  function openCancel() {
+    setReasonType("고객요청");
+    setCustomReason("");
+    setNoPaymentMessage(null);
+    setCancelOpen(true);
+  }
+
+  function onCancelSubmit(skipPayment: boolean) {
+    if (!cancelReason) { showToast("취소 사유를 입력해 주세요."); return; }
+    startTransition(async () => {
+      const res = await cancelReservation(reservation.id, cancelReason, skipPayment);
+      if (res.ok) {
+        setCancelOpen(false);
+        showToast(res.message);
+      } else if (res.needsNoPaymentConfirm) {
+        setNoPaymentMessage(res.message);
+      } else {
+        showToast(res.message);
+      }
     });
   }
 
@@ -278,12 +307,23 @@ export default function ReservationDetail({
             <div style={{ fontSize: 12, color: "#9E7286", marginTop: 6, textAlign: "right" }}>현장결제(잔금) {won(Math.max(0, money.total - parsedFields.paidAmount))}</div>
           </div>
 
+          {isCancelled && reservation.cancel && (
+            <div style={{ marginTop: 20, padding: 16, borderRadius: 14, background: "#F1F0F0", fontSize: 13, lineHeight: 1.65, color: "#6E686B" }}>
+              <div style={{ fontWeight: 700, color: "#413A3E", marginBottom: 4 }}>취소된 예약입니다</div>
+              <div>사유 · {reservation.cancel.reason}</div>
+              {reservation.cancel.atLabel && <div>취소일시 · {reservation.cancel.atLabel}</div>}
+              <div>환불 금액 · {reservation.cancel.refundAmount ? won(reservation.cancel.refundAmount) : "결제취소 없음"}</div>
+            </div>
+          )}
+
+          {!isCancelled && (
           <div style={{ display: "flex", flexWrap: "wrap", gap: 10, marginTop: 20 }}>
             <button disabled={isPending} onClick={onConfirmClick} style={{ flex: 1, height: 52, border: 0, borderRadius: 14, background: "#B0567E", color: "#fff", fontSize: 15, fontWeight: 700, opacity: isPending ? 0.7 : 1 }}>
               {isConfirmed ? "확정 내용 저장" : "확정하기"}
             </button>
             <button disabled={isPending} onClick={onHoldClick} style={{ height: 52, padding: "0 20px", border: 0, borderRadius: 14, background: "#F6F3F5", color: "#6E646A", fontSize: 14.5, fontWeight: 600 }}>협의 중</button>
           </div>
+          )}
 
           {isConfirmed && (
             <div style={{ marginTop: 14, padding: 15, borderRadius: 12, border: "1px solid #EFEBED", display: "flex", flexWrap: "wrap", alignItems: "center", gap: 12 }}>
@@ -308,8 +348,65 @@ export default function ReservationDetail({
               </button>
             </div>
           )}
+          {!isCancelled && (
+            <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 14 }}>
+              <button disabled={isPending} onClick={openCancel} style={{ height: 40, padding: "0 14px", border: "1px solid #E7C9C9", borderRadius: 12, background: "#FFFFFF", color: "#B04A4A", fontSize: 13, fontWeight: 700 }}>
+                예약 취소
+              </button>
+            </div>
+          )}
         </section>
       </div>
+
+      {cancelOpen && (
+        <div onClick={() => !isPending && setCancelOpen(false)} style={{ position: "fixed", inset: 0, zIndex: 60, background: "rgba(30,26,28,0.35)", display: "flex", alignItems: "center", justifyContent: "center", padding: 16 }}>
+          <div onClick={(e) => e.stopPropagation()} style={{ width: "100%", maxWidth: 420, background: "#FFFFFF", borderRadius: 18, padding: 24, boxSizing: "border-box" }}>
+            <h2 style={{ margin: "0 0 6px", fontSize: 17, fontWeight: 800 }}>예약 취소</h2>
+            <p style={{ margin: "0 0 18px", fontSize: 13, lineHeight: 1.6, color: "#6E646A" }}>
+              {reservation.customer} 님 예약({reservation.id})을 취소하고, 이니시스에 결제금액 전액(어드민 기록 {won(reservation.paidAmount)}) 취소를 요청합니다. 결제취소는 되돌릴 수 없습니다.
+            </p>
+
+            <div style={{ fontSize: 12.5, fontWeight: 700, color: "#6E646A", marginBottom: 8 }}>취소 사유</div>
+            <div style={{ display: "flex", flexDirection: "column", gap: 8, fontSize: 13.5 }}>
+              <label style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                <input type="radio" name="cancelReason" checked={reasonType === "고객요청"} onChange={() => setReasonType("고객요청")} />
+                고객요청
+              </label>
+              <label style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                <input type="radio" name="cancelReason" checked={reasonType === "직접입력"} onChange={() => setReasonType("직접입력")} />
+                직접 입력
+              </label>
+              {reasonType === "직접입력" && (
+                <textarea
+                  rows={3}
+                  autoFocus
+                  value={customReason}
+                  onChange={(e) => setCustomReason(e.target.value)}
+                  placeholder="취소 사유를 입력하세요"
+                  style={{ ...inputStyle, resize: "vertical", lineHeight: 1.6 }}
+                />
+              )}
+            </div>
+
+            {noPaymentMessage && (
+              <div style={{ marginTop: 16, padding: 14, borderRadius: 12, background: "#FFF6E8", fontSize: 13, lineHeight: 1.6, color: "#7D5A1F" }}>
+                {noPaymentMessage}<br />결제취소 없이 예약만 취소할까요?
+              </div>
+            )}
+
+            <div style={{ display: "flex", gap: 10, marginTop: 20 }}>
+              <button disabled={isPending} onClick={() => setCancelOpen(false)} style={{ flex: 1, height: 46, border: 0, borderRadius: 12, background: "#F6F3F5", color: "#6E646A", fontSize: 14, fontWeight: 600 }}>닫기</button>
+              <button
+                disabled={isPending || !cancelReason}
+                onClick={() => onCancelSubmit(Boolean(noPaymentMessage))}
+                style={{ flex: 1.4, height: 46, border: 0, borderRadius: 12, background: "#B04A4A", color: "#fff", fontSize: 14, fontWeight: 700, opacity: isPending || !cancelReason ? 0.6 : 1 }}
+              >
+                {isPending ? "처리 중…" : noPaymentMessage ? "예약만 취소" : "취소하고 결제취소 요청"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </main>
   );
 }

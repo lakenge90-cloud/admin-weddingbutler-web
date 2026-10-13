@@ -9,7 +9,7 @@ import { toNum } from "@/lib/format";
 import { useToast } from "./ToastContext";
 import { useIsMobile } from "@/lib/useIsMobile";
 
-const FILTERS = ["전체", "신규요청", "협의중", "확정"];
+const FILTERS = ["전체", "신규요청", "협의중", "확정", "취소"];
 
 export default function ReservationListControls({ currentFilter }: { currentFilter: string }) {
   const mobile = useIsMobile();

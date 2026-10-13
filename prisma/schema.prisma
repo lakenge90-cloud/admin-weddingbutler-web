@@ -15,7 +15,7 @@ model AdminUser {
   createdAt    DateTime @default(now())
 }
 
-// Status values: "신규요청" | "협의중" | "확정"
+// Status values: "신규요청" | "협의중" | "확정" | "취소"
 // Plan keys: "스몰케어" | "스탠다드" | "프리미엄"
 model Reservation {
   id             String   @id
@@ -43,6 +43,10 @@ model Reservation {
   paidAmount     Int      @default(0)
 
   alimtalkAt     DateTime?
+
+  cancelReason   String    @default("")
+  cancelledAt    DateTime?
+  refundAmount   Int       @default(0)
 
   notes          Note[]
   recordLink     RecordLink?

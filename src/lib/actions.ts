@@ -7,6 +7,7 @@ import { prisma } from "@/lib/prisma";
 import { calcConfirm, planMeta } from "@/lib/pricing";
 import { formatWishDateLabel } from "@/lib/format";
 import { sendConfirmAlimtalk } from "@/lib/alimtalk";
+import { requestPaymentCancel } from "@/lib/paymentCancel";
 
 async function requireSession() {
   const session = await getServerSession(authOptions);
@@ -103,6 +104,48 @@ export async function holdReservation(id: string) {
   const updated = await prisma.reservation.update({ where: { id }, data: { status: "협의중" } });
   revalidateAll();
   return { message: "협의 중 상태로 변경했습니다.", id: updated.id };
+}
+
+export type CancelResult =
+  | { ok: true; message: string }
+  | { ok: false; needsNoPaymentConfirm: boolean; message: string };
+
+// 예약 취소. 기본은 홈페이지를 통해 이니시스 결제를 전액 취소한 뒤 상태를 "취소"로 바꾼다.
+// 홈페이지에 결제 완료 기록이 없으면(수동 등록 건 등) needsNoPaymentConfirm으로 알려 주고,
+// 운영자가 다시 확인하면 skipPayment로 결제취소 없이 예약만 취소한다.
+export async function cancelReservation(id: string, reason: string, skipPayment = false): Promise<CancelResult> {
+  await requireSession();
+  const trimmed = reason.trim();
+  if (!trimmed) return { ok: false, needsNoPaymentConfirm: false, message: "취소 사유를 입력해 주세요." };
+
+  const existing = await prisma.reservation.findUniqueOrThrow({ where: { id } });
+  if (existing.status === "취소") return { ok: false, needsNoPaymentConfirm: false, message: "이미 취소된 예약입니다." };
+
+  let refundAmount = 0;
+  if (!skipPayment) {
+    const result = await requestPaymentCancel(id, trimmed);
+    if (result.state === "error") return { ok: false, needsNoPaymentConfirm: false, message: result.message };
+    if (result.state === "no_payment") return { ok: false, needsNoPaymentConfirm: true, message: result.message };
+    refundAmount = result.refundAmount;
+  }
+
+  await prisma.reservation.update({
+    where: { id },
+    data: { status: "취소", cancelReason: trimmed, cancelledAt: new Date(), refundAmount },
+  });
+  await prisma.note.create({
+    data: {
+      reservationId: id,
+      text: skipPayment
+        ? `예약 취소 (결제취소 없음) · 사유: ${trimmed}`
+        : `예약 취소 · 결제 ${refundAmount.toLocaleString("ko-KR")}원 환불 요청 · 사유: ${trimmed}`,
+    },
+  });
+  revalidateAll();
+  return {
+    ok: true,
+    message: skipPayment ? "예약을 취소했습니다." : "예약을 취소하고 이니시스에 결제취소를 요청했습니다.",
+  };
 }
 
 export async function addNote(id: string, text: string) {
