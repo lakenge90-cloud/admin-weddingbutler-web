@@ -123,6 +123,8 @@ export async function POST(req: NextRequest) {
       confirmNote: "",
       paidAmount: resolvedPaidAmount,
       paymentType: resolvedPaymentType,
+      requestedTotal: useHomepageAmounts ? totalAmount : 0,
+      requestedExtraButlers: resolvedExtraButlers,
     },
   });
 

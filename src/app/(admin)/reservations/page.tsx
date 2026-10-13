@@ -22,6 +22,8 @@ function buildDetail(r: NonNullable<Awaited<ReturnType<typeof loadReservation>>>
     requestedPlan: r.requestedPlan,
     paidAmount: r.paidAmount,
     paymentType: r.paymentType,
+    requestedTotal: r.requestedTotal,
+    requestedExtraButlers: r.requestedExtraButlers,
     alimtalkLabel: r.alimtalkAt ? formatStamp(r.alimtalkAt) : "이력 없음",
     cancel: r.status === "취소"
       ? { reason: r.cancelReason, atLabel: r.cancelledAt ? formatStamp(r.cancelledAt) : "", refundAmount: r.refundAmount }

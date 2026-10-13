@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { calcConfirm, onsiteAmount, PAYMENT_TYPES, paymentTypeName, requestedTotal, resolvePaymentType, won, type PaymentType } from "@/lib/pricing";
+import { calcConfirm, EXTRA_BUTLER_FEE, onsiteAmount, PAYMENT_TYPES, paymentTypeName, requestedTotal, resolvePaymentType, won, type PaymentType } from "@/lib/pricing";
 import { BADGE } from "@/lib/badge";
 import { toNum } from "@/lib/format";
 import { useIsMobile } from "@/lib/useIsMobile";
@@ -30,6 +30,8 @@ export interface DetailReservation {
   requestedPlan: string;
   paidAmount: number;
   paymentType: string;
+  requestedTotal: number;
+  requestedExtraButlers: number;
   alimtalkLabel: string;
   cancel: { reason: string; atLabel: string; refundAmount: number } | null;
   recordStatus: "none" | "draft" | "published" | "revoked";
@@ -106,7 +108,15 @@ export default function ReservationDetail({
   );
 
   const money = useMemo(() => calcConfirm({ plan: reservation.confirm.plan, butlers: parsedFields.butlers, extraGuests: parsedFields.extraGuests, discount: parsedFields.discount }), [reservation.confirm.plan, parsedFields]);
-  const req = useMemo(() => requestedTotal(reservation.requestedPlan, reservation.guestsLabel), [reservation.requestedPlan, reservation.guestsLabel]);
+  const req = useMemo(() => {
+    const est = requestedTotal(reservation.requestedPlan, reservation.guestsLabel);
+    // 홈페이지 예약은 홈페이지가 보낸 금액을 그대로 보여준다(초과 식권은 당일 정산이라 총액에 없음).
+    if (reservation.requestedTotal > 0) {
+      const butlerFee = reservation.requestedExtraButlers * EXTRA_BUTLER_FEE;
+      return { ...est, fromHomepage: true, base: reservation.requestedTotal - butlerFee, butlerFee, total: reservation.requestedTotal };
+    }
+    return { ...est, fromHomepage: false, base: est.meta.base, butlerFee: 0 };
+  }, [reservation.requestedPlan, reservation.guestsLabel, reservation.requestedTotal, reservation.requestedExtraButlers]);
 
   const badge = BADGE[reservation.status] ?? BADGE["신규요청"];
   const isConfirmed = reservation.status === "확정";
@@ -219,7 +229,7 @@ export default function ReservationDetail({
             <div style={{ display: "grid", gridTemplateColumns: "96px minmax(0,1fr)", gap: "13px 16px", fontSize: 13.5 }}>
               <span style={{ color: "#8C8188" }}>예식 일시</span><span style={{ fontWeight: 600 }}>{reservation.wishDateLabel}</span>
               <span style={{ color: "#8C8188" }}>예식장</span><span>{reservation.venueLabel}</span>
-              <span style={{ color: "#8C8188" }}>배정 버틀러</span><span>{req.meta.butlers}명</span>
+              <span style={{ color: "#8C8188" }}>배정 버틀러</span><span>{req.meta.butlers + reservation.requestedExtraButlers}명</span>
               <span style={{ color: "#8C8188" }}>예상 하객</span><span>{reservation.guestsLabel}</span>
               <span style={{ color: "#8C8188" }}>예약자</span><span>{reservation.couple} · {reservation.phone}</span>
               <span style={{ color: "#8C8188" }}>요청 사항</span><span style={{ lineHeight: 1.6 }}>{reservation.memo}</span>
@@ -228,9 +238,9 @@ export default function ReservationDetail({
             <div style={{ height: 1, background: "#ECE7E9", margin: "16px 0" }} />
 
             <div style={{ display: "flex", flexDirection: "column", gap: 10, fontSize: 13, color: "#6E646A" }}>
-              <div style={{ display: "flex", justifyContent: "space-between", gap: 12 }}><span>기본 요금</span><span style={{ fontWeight: 600, color: "#413A3E" }}>{won(req.meta.base)}</span></div>
-              <div style={{ display: "flex", justifyContent: "space-between", gap: 12 }}><span>추가 하객 {req.extraGuests}명</span><span style={{ fontWeight: 600, color: "#413A3E" }}>{req.guestFee ? won(req.guestFee) : "-"}</span></div>
-              <div style={{ display: "flex", justifyContent: "space-between", gap: 12 }}><span>버틀러 추가</span><span style={{ fontWeight: 600, color: "#413A3E" }}>-</span></div>
+              <div style={{ display: "flex", justifyContent: "space-between", gap: 12 }}><span>기본 요금</span><span style={{ fontWeight: 600, color: "#413A3E" }}>{won(req.base)}</span></div>
+              <div style={{ display: "flex", justifyContent: "space-between", gap: 12 }}><span>추가 하객 {req.extraGuests}명</span><span style={{ fontWeight: 600, color: "#413A3E" }}>{req.fromHomepage ? (req.extraGuests ? "당일 실제 매수로 정산" : "-") : req.guestFee ? won(req.guestFee) : "-"}</span></div>
+              <div style={{ display: "flex", justifyContent: "space-between", gap: 12 }}><span>버틀러 추가{reservation.requestedExtraButlers ? ` ${reservation.requestedExtraButlers}명` : ""}</span><span style={{ fontWeight: 600, color: "#413A3E" }}>{req.butlerFee ? won(req.butlerFee) : "-"}</span></div>
               <div style={{ display: "flex", justifyContent: "space-between", gap: 12, paddingTop: 10, borderTop: "1px solid #ECE7E9" }}><span>총 금액 (부가세 포함)</span><span style={{ fontWeight: 700, color: "#413A3E" }}>{won(req.total)}</span></div>
             </div>
 
@@ -239,6 +249,10 @@ export default function ReservationDetail({
               <span style={{ fontSize: 20, fontWeight: 800, color: "#7E3855" }}>{won(reservation.paidAmount)}</span>
             </div>
             <div style={{ fontSize: 12, color: "#9E7286", marginTop: 6, textAlign: "right" }}>홈페이지에서 결제한 금액</div>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 12, marginTop: 10, fontSize: 13.5 }}>
+              <span style={{ color: "#6E646A" }}>현장결제 금액</span>
+              <span style={{ fontWeight: 700, color: "#413A3E" }}>{won(onsiteAmount(req.total, reservation.paidAmount))}</span>
+            </div>
           </section>
 
           <section style={{ padding: "0 4px" }}>

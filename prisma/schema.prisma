@@ -43,6 +43,9 @@ model Reservation {
   paidAmount     Int      @default(0)
   // 홈페이지 결제 유형: "deposit"(예약금 결제 후 현장결제) | "full"(전액결제) | ""(미지정, 이전 예약)
   paymentType    String   @default("")
+  // 홈페이지가 보낸 신청 금액(기본 요금 + 추가 버틀러). 0이면 홈페이지 금액 없음(이전·수동 예약)
+  requestedTotal         Int @default(0)
+  requestedExtraButlers  Int @default(0)
 
   alimtalkAt     DateTime?
 
