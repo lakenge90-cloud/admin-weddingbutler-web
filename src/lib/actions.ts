@@ -4,7 +4,7 @@ import { getServerSession } from "next-auth";
 import { revalidatePath } from "next/cache";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import { calcConfirm, planMeta } from "@/lib/pricing";
+import { calcConfirm, isPaymentType, planMeta } from "@/lib/pricing";
 import { formatWishDateLabel } from "@/lib/format";
 import { sendConfirmAlimtalk } from "@/lib/alimtalk";
 import { requestPaymentCancel } from "@/lib/paymentCancel";
@@ -31,6 +31,7 @@ export interface ConfirmFieldsInput {
   hours: string;
   note: string;
   paidAmount: number;
+  paymentType: string;
 }
 
 export async function saveConfirmFields(id: string, fields: ConfirmFieldsInput) {
@@ -47,6 +48,7 @@ export async function saveConfirmFields(id: string, fields: ConfirmFieldsInput) 
       confirmHours: fields.hours,
       confirmNote: fields.note,
       paidAmount: fields.paidAmount,
+      paymentType: isPaymentType(fields.paymentType) ? fields.paymentType : "",
     },
   });
   revalidateAll();
@@ -70,6 +72,7 @@ export async function confirmReservation(id: string, fields: ConfirmFieldsInput)
       confirmHours: fields.hours,
       confirmNote: fields.note,
       paidAmount: fields.paidAmount,
+      paymentType: isPaymentType(fields.paymentType) ? fields.paymentType : "",
     },
   });
 
@@ -172,6 +175,7 @@ export interface NewReservationInput {
   memo: string;
   requestedPlan: string;
   paidAmount?: number;
+  paymentType?: string;
 }
 
 function generateId() {
@@ -208,6 +212,7 @@ export async function createReservation(input: NewReservationInput) {
       confirmHours: "",
       confirmNote: "",
       paidAmount: input.paidAmount ?? 0,
+      paymentType: isPaymentType(input.paymentType) ? input.paymentType : "",
     },
   });
   revalidateAll();

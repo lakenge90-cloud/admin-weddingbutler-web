@@ -3,7 +3,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import { PLANS } from "@/lib/pricing";
+import { PAYMENT_TYPES, PLANS, type PaymentType } from "@/lib/pricing";
 import { createReservation } from "@/lib/actions";
 import { toNum } from "@/lib/format";
 import { useToast } from "./ToastContext";
@@ -19,9 +19,9 @@ export default function ReservationListControls({ currentFilter }: { currentFilt
   const [open, setOpen] = useState(false);
   const [saving, setSaving] = useState(false);
   const [form, setForm] = useState<{
-    customer: string; couple: string; phone: string; wishDateLabel: string; venueLabel: string; guestsLabel: string; memo: string; requestedPlan: string; paidAmount: string;
+    customer: string; couple: string; phone: string; wishDateLabel: string; venueLabel: string; guestsLabel: string; memo: string; requestedPlan: string; paidAmount: string; paymentType: string;
   }>({
-    customer: "", couple: "", phone: "", wishDateLabel: "", venueLabel: "", guestsLabel: "", memo: "", requestedPlan: PLANS[1].key, paidAmount: "0",
+    customer: "", couple: "", phone: "", wishDateLabel: "", venueLabel: "", guestsLabel: "", memo: "", requestedPlan: PLANS[1].key, paidAmount: "0", paymentType: "",
   });
 
   function filterHref(label: string) {
@@ -41,7 +41,7 @@ export default function ReservationListControls({ currentFilter }: { currentFilt
     const res = await createReservation({ ...form, paidAmount: toNum(form.paidAmount) });
     setSaving(false);
     setOpen(false);
-    setForm({ customer: "", couple: "", phone: "", wishDateLabel: "", venueLabel: "", guestsLabel: "", memo: "", requestedPlan: PLANS[1].key, paidAmount: "0" });
+    setForm({ customer: "", couple: "", phone: "", wishDateLabel: "", venueLabel: "", guestsLabel: "", memo: "", requestedPlan: PLANS[1].key, paidAmount: "0", paymentType: "" });
     showToast("새 예약이 등록되었습니다.");
     router.push(`/reservations?id=${res.id}`);
   }
@@ -101,6 +101,13 @@ export default function ReservationListControls({ currentFilter }: { currentFilt
                 요금제
                 <select style={inputStyle} value={form.requestedPlan} onChange={(e) => setForm((f) => ({ ...f, requestedPlan: e.target.value }))}>
                   {PLANS.map((p) => <option key={p.key} value={p.key}>{p.key} ({p.desc})</option>)}
+                </select>
+              </label>
+              <label style={{ fontSize: 12.5, fontWeight: 600, color: "#6E646A", display: "flex", flexDirection: "column", gap: 6 }}>
+                결제 방식
+                <select style={inputStyle} value={form.paymentType} onChange={(e) => setForm((f) => ({ ...f, paymentType: e.target.value }))}>
+                  <option value="">미지정</option>
+                  {(Object.keys(PAYMENT_TYPES) as PaymentType[]).map((t) => <option key={t} value={t}>{PAYMENT_TYPES[t].name}</option>)}
                 </select>
               </label>
               <label style={{ fontSize: 12.5, fontWeight: 600, color: "#6E646A", display: "flex", flexDirection: "column", gap: 6 }}>

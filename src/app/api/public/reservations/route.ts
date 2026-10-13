@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { waitUntil } from "@vercel/functions";
 import { prisma } from "@/lib/prisma";
-import { PLANS, planMeta, won } from "@/lib/pricing";
+import { PAYMENT_TYPES, PLANS, calcConfirm, isPaymentType, onsiteAmount, planMeta, won } from "@/lib/pricing";
 import { formatWishDateLabel } from "@/lib/format";
 import { sendNewReservationAlimtalk } from "@/lib/alimtalk";
 import { sendNewReservationKakaoWorkNotice } from "@/lib/kakaowork";
@@ -20,6 +20,8 @@ interface IncomingBody {
   plan?: string;
   memo?: string;
   paidAmount?: number;
+  paymentType?: string; // "deposit" | "full"
+  extraButlers?: number;
 }
 
 function unauthorized() {
@@ -55,7 +57,7 @@ export async function POST(req: NextRequest) {
     return badRequest("invalid JSON body");
   }
 
-  const { externalId, customer, couple, phone, weddingDate, weddingTime, venue, guestCount, plan, memo, paidAmount } = body;
+  const { externalId, customer, couple, phone, weddingDate, weddingTime, venue, guestCount, plan, memo, paidAmount, paymentType, extraButlers } = body;
 
   if (!customer?.trim()) return badRequest("customer is required");
   if (!couple?.trim()) return badRequest("couple is required");
@@ -79,6 +81,12 @@ export async function POST(req: NextRequest) {
   const meta = planMeta(plan);
   const extraGuests = Math.max(0, guestCount - meta.guestLimit);
   const resolvedPaidAmount = typeof paidAmount === "number" && paidAmount >= 0 ? paidAmount : 0;
+  const resolvedPaymentType = isPaymentType(paymentType) ? paymentType : "";
+  const resolvedExtraButlers = typeof extraButlers === "number" && extraButlers > 0 ? Math.floor(extraButlers) : 0;
+  const butlers = meta.butlers + resolvedExtraButlers;
+  const total = calcConfirm({ plan, butlers, extraGuests, discount: 0 }).total;
+  const onsite = onsiteAmount(total, resolvedPaidAmount);
+  const memoParts = [memo?.trim() ?? "", resolvedExtraButlers ? `버틀러 추가 ${resolvedExtraButlers}명` : ""].filter(Boolean);
 
   const created = await prisma.reservation.create({
     data: {
@@ -90,19 +98,20 @@ export async function POST(req: NextRequest) {
       wishDateLabel: formatWishDateLabel(weddingDate, weddingTime),
       venueLabel: venue.trim(),
       guestsLabel: `약 ${guestCount}명`,
-      memo: memo?.trim() ?? "",
+      memo: memoParts.join(" · "),
       status: "신규요청",
       requestedPlan: plan,
       confirmPlan: plan,
       confirmDate: weddingDate,
       confirmTime: weddingTime,
       confirmVenue: venue.trim(),
-      confirmButlers: meta.butlers,
+      confirmButlers: butlers,
       confirmExtraGuests: extraGuests,
       confirmDiscount: 0,
       confirmHours: "",
       confirmNote: "",
       paidAmount: resolvedPaidAmount,
+      paymentType: resolvedPaymentType,
     },
   });
 
@@ -121,8 +130,8 @@ export async function POST(req: NextRequest) {
       requestedPlan: created.requestedPlan,
       planAmount: meta.base,
       paidAmount: created.paidAmount,
-      confirmAmount: meta.base,
-      balanceAmount: Math.max(0, meta.base - created.paidAmount),
+      confirmAmount: total,
+      balanceAmount: onsite,
     })
   );
 
@@ -132,7 +141,8 @@ export async function POST(req: NextRequest) {
         `신규 예약 신청 (${created.id})`,
         `고객: ${created.customer} (${created.couple}) · ${created.phone}`,
         `예식: ${created.wishDateLabel} · ${created.venueLabel}`,
-        `플랜: ${created.requestedPlan} · 결제 ${won(created.paidAmount)}`,
+        `플랜: ${created.requestedPlan}${resolvedExtraButlers ? ` (버틀러 추가 ${resolvedExtraButlers}명)` : ""}`,
+        `결제: ${resolvedPaymentType ? PAYMENT_TYPES[resolvedPaymentType].name : "유형 미지정"} · 결제 ${won(created.paidAmount)} · 현장(현금) ${won(onsite)}`,
       ].join("\n")
     )
   );

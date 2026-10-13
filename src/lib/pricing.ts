@@ -41,8 +41,6 @@ export interface PriceBreakdown {
   butlerFee: number;
   discount: number;
   total: number;
-  prepay: number;
-  balance: number;
 }
 
 export function calcConfirm(input: ConfirmInput): PriceBreakdown {
@@ -52,8 +50,7 @@ export function calcConfirm(input: ConfirmInput): PriceBreakdown {
   const butlerFee = extraButlers * EXTRA_BUTLER_FEE;
   const discount = input.discount;
   const total = Math.max(0, meta.base + guestFee + butlerFee - discount);
-  const prepay = Math.round(total / 2);
-  return { meta, butlers: input.butlers, extraButlers, guestFee, butlerFee, discount, total, prepay, balance: total - prepay };
+  return { meta, butlers: input.butlers, extraButlers, guestFee, butlerFee, discount, total };
 }
 
 export function requestedTotal(planKey: string, guestsLabel: string) {
@@ -62,6 +59,34 @@ export function requestedTotal(planKey: string, guestsLabel: string) {
   const extraGuests = Math.max(0, guestCount - meta.guestLimit);
   const guestFee = extraGuests * EXTRA_GUEST_FEE;
   const total = meta.base + guestFee;
-  const prepay = Math.round(total / 2);
-  return { meta, extraGuests, guestFee, total, prepay, balance: total - prepay };
+  return { meta, extraGuests, guestFee, total };
+}
+
+// 홈페이지 예약 결제 유형 — src/lib/plans.ts의 PaymentType과 같은 값.
+export type PaymentType = "deposit" | "full";
+
+export const PAYMENT_TYPES: Record<PaymentType, { name: string; short: string }> = {
+  deposit: { name: "예약금 결제 후 현장결제", short: "예약금" },
+  full: { name: "전액결제", short: "전액" },
+};
+
+export function isPaymentType(v: unknown): v is PaymentType {
+  return v === "deposit" || v === "full";
+}
+
+/** 저장된 유형이 없으면(이전 예약) 결제한 금액으로 추정한다. */
+export function resolvePaymentType(stored: string, paidAmount: number, total: number): PaymentType | null {
+  if (isPaymentType(stored)) return stored;
+  if (paidAmount <= 0) return null;
+  return paidAmount >= total ? "full" : "deposit";
+}
+
+export function paymentTypeName(stored: string, paidAmount: number, total: number): string {
+  const t = resolvePaymentType(stored, paidAmount, total);
+  return t ? PAYMENT_TYPES[t].name : "미지정";
+}
+
+/** 현장에서 현금으로 받을 금액 = 총 금액 − 결제한 금액. */
+export function onsiteAmount(total: number, paidAmount: number): number {
+  return Math.max(0, total - paidAmount);
 }

@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { calcConfirm, requestedTotal, won } from "@/lib/pricing";
+import { calcConfirm, onsiteAmount, PAYMENT_TYPES, paymentTypeName, requestedTotal, resolvePaymentType, won, type PaymentType } from "@/lib/pricing";
 import { BADGE } from "@/lib/badge";
 import { toNum } from "@/lib/format";
 import { useIsMobile } from "@/lib/useIsMobile";
@@ -29,6 +29,7 @@ export interface DetailReservation {
   status: string;
   requestedPlan: string;
   paidAmount: number;
+  paymentType: string;
   alimtalkLabel: string;
   cancel: { reason: string; atLabel: string; refundAmount: number } | null;
   recordStatus: "none" | "draft" | "published" | "revoked";
@@ -80,6 +81,12 @@ export default function ReservationDetail({
     hours: reservation.confirm.hours,
     note: reservation.confirm.note,
     paidAmount: String(reservation.paidAmount),
+    paymentType:
+      resolvePaymentType(
+        reservation.paymentType,
+        reservation.paidAmount,
+        calcConfirm({ plan: reservation.confirm.plan, butlers: reservation.confirm.butlers, extraGuests: reservation.confirm.extraGuests, discount: reservation.confirm.discount }).total
+      ) ?? "",
   });
 
   const parsedFields = useMemo(
@@ -93,6 +100,7 @@ export default function ReservationDetail({
       hours: fields.hours,
       note: fields.note,
       paidAmount: toNum(fields.paidAmount),
+      paymentType: fields.paymentType,
     }),
     [fields]
   );
@@ -227,10 +235,10 @@ export default function ReservationDetail({
             </div>
 
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 12, marginTop: 14 }}>
-              <span style={{ fontSize: 13.5, fontWeight: 700, color: "#7E3855" }}>선결제 50%</span>
-              <span style={{ fontSize: 20, fontWeight: 800, color: "#7E3855" }}>{won(req.prepay)}</span>
+              <span style={{ fontSize: 13.5, fontWeight: 700, color: "#7E3855" }}>{paymentTypeName(reservation.paymentType, reservation.paidAmount, req.total)}</span>
+              <span style={{ fontSize: 20, fontWeight: 800, color: "#7E3855" }}>{won(reservation.paidAmount)}</span>
             </div>
-            <div style={{ fontSize: 12, color: "#9E7286", marginTop: 6, textAlign: "right" }}>예식 후 잔금 {won(req.balance)}</div>
+            <div style={{ fontSize: 12, color: "#9E7286", marginTop: 6, textAlign: "right" }}>홈페이지에서 결제한 금액</div>
           </section>
 
           <section style={{ padding: "0 4px" }}>
@@ -280,6 +288,20 @@ export default function ReservationDetail({
             <label style={labelStyle}>배정 버틀러 (명)<input {...field("butlers")} style={inputStyle} /></label>
             <label style={labelStyle}>추가 하객 (명)<input {...field("extraGuests")} style={inputStyle} /></label>
             <label style={labelStyle}>할인 금액 (원)<input {...field("discount")} placeholder="0" style={inputStyle} /></label>
+            <label style={labelStyle}>결제 방식
+              <select
+                value={fields.paymentType}
+                onChange={(e) => {
+                  const v = e.target.value;
+                  setFields((f) => ({ ...f, paymentType: v }));
+                  startTransition(() => { saveConfirmFields(reservation.id, { ...parsedFields, paymentType: v }); });
+                }}
+                style={inputStyle}
+              >
+                <option value="">미지정</option>
+                {(Object.keys(PAYMENT_TYPES) as PaymentType[]).map((t) => <option key={t} value={t}>{PAYMENT_TYPES[t].name}</option>)}
+              </select>
+            </label>
             <label style={labelStyle}>결제한 금액 (원)<input {...field("paidAmount")} placeholder="0" style={inputStyle} /></label>
             <label style={labelStyle}>근무 시간<input {...field("hours")} style={inputStyle} /></label>
             <label style={{ ...labelStyle, gridColumn: "1 / -1" }}>특이사항<textarea rows={3} {...field("note")} style={{ ...inputStyle, resize: "vertical", lineHeight: 1.6 }} /></label>
@@ -297,14 +319,17 @@ export default function ReservationDetail({
             </div>
             <div style={{ height: 1, background: "#EBD5DF", margin: "14px 0" }} />
             <div style={{ display: "flex", justifyContent: "space-between", gap: 12, fontSize: 13.5 }}><span style={{ color: "#6E5A62" }}>총 금액 (부가세 포함)</span><span style={{ fontWeight: 700 }}>{won(money.total)}</span></div>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 12, marginTop: 12 }}>
-              <span style={{ fontSize: 13.5, fontWeight: 700, color: "#7E3855" }}>선결제 50%</span>
-              <span style={{ fontSize: 22, fontWeight: 800, color: "#7E3855" }}>{won(money.prepay)}</span>
-            </div>
-            <div style={{ fontSize: 12, color: "#9E7286", marginTop: 6, textAlign: "right" }}>예식 후 잔금 {won(money.balance)}</div>
+            <div style={{ display: "flex", justifyContent: "space-between", gap: 12, fontSize: 13.5, marginTop: 10 }}><span style={{ color: "#6E5A62" }}>결제 방식</span><span style={{ fontWeight: 700 }}>{paymentTypeName(parsedFields.paymentType, parsedFields.paidAmount, money.total)}</span></div>
             <div style={{ height: 1, background: "#EBD5DF", margin: "14px 0" }} />
-            <div style={{ display: "flex", justifyContent: "space-between", gap: 12, fontSize: 13.5 }}><span style={{ color: "#6E5A62" }}>실 결제 금액</span><span style={{ fontWeight: 700 }}>{won(parsedFields.paidAmount)}</span></div>
-            <div style={{ fontSize: 12, color: "#9E7286", marginTop: 6, textAlign: "right" }}>현장결제(잔금) {won(Math.max(0, money.total - parsedFields.paidAmount))}</div>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 12 }}>
+              <span style={{ fontSize: 13.5, fontWeight: 700, color: "#7E3855" }}>결제한 금액</span>
+              <span style={{ fontSize: 22, fontWeight: 800, color: "#7E3855" }}>{won(parsedFields.paidAmount)}</span>
+            </div>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 12, marginTop: 10 }}>
+              <span style={{ fontSize: 13.5, fontWeight: 700, color: "#6E5A62" }}>현장결제 금액</span>
+              <span style={{ fontSize: 18, fontWeight: 800, color: "#413A3E" }}>{won(onsiteAmount(money.total, parsedFields.paidAmount))}</span>
+            </div>
+            <div style={{ fontSize: 12, color: "#9E7286", marginTop: 6, textAlign: "right" }}>예식 당일 인계 직전 현금 결제</div>
           </div>
 
           {isCancelled && reservation.cancel && (

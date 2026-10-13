@@ -21,6 +21,7 @@ function buildDetail(r: NonNullable<Awaited<ReturnType<typeof loadReservation>>>
     status: r.status,
     requestedPlan: r.requestedPlan,
     paidAmount: r.paidAmount,
+    paymentType: r.paymentType,
     alimtalkLabel: r.alimtalkAt ? formatStamp(r.alimtalkAt) : "이력 없음",
     cancel: r.status === "취소"
       ? { reason: r.cancelReason, atLabel: r.cancelledAt ? formatStamp(r.cancelledAt) : "", refundAmount: r.refundAmount }
@@ -120,7 +121,7 @@ export default async function ReservationsPage({
                 </div>
                 <div style={{ display: "flex", flexWrap: "wrap", gap: "4px 10px", fontSize: 12, color: "#A79BA1" }}>
                   <span>플랜 {row.planAmountLine}</span>
-                  <span style={{ marginLeft: "auto" }}>결제 {row.paidAmountLine}</span>
+                  <span style={{ marginLeft: "auto" }}>{row.paymentTypeLine} · 결제 {row.paidAmountLine} · 현장 {row.onsiteAmountLine}</span>
                 </div>
               </Link>
             );
