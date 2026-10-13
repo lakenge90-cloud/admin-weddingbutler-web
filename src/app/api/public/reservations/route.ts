@@ -22,6 +22,8 @@ interface IncomingBody {
   paidAmount?: number;
   paymentType?: string; // "deposit" | "full"
   extraButlers?: number;
+  totalAmount?: number; // 홈페이지가 계산한 총 금액(기본 요금 + 추가 버틀러)
+  onsiteAmount?: number; // 홈페이지가 안내한 현장결제 금액
 }
 
 function unauthorized() {
@@ -57,7 +59,7 @@ export async function POST(req: NextRequest) {
     return badRequest("invalid JSON body");
   }
 
-  const { externalId, customer, couple, phone, weddingDate, weddingTime, venue, guestCount, plan, memo, paidAmount, paymentType, extraButlers } = body;
+  const { externalId, customer, couple, phone, weddingDate, weddingTime, venue, guestCount, plan, memo, paidAmount, paymentType, extraButlers, totalAmount, onsiteAmount: sentOnsite } = body;
 
   if (!customer?.trim()) return badRequest("customer is required");
   if (!couple?.trim()) return badRequest("couple is required");
@@ -79,13 +81,22 @@ export async function POST(req: NextRequest) {
   }
 
   const meta = planMeta(plan);
-  const extraGuests = Math.max(0, guestCount - meta.guestLimit);
+  const estimatedExtraGuests = Math.max(0, guestCount - meta.guestLimit);
   const resolvedPaidAmount = typeof paidAmount === "number" && paidAmount >= 0 ? paidAmount : 0;
   const resolvedPaymentType = isPaymentType(paymentType) ? paymentType : "";
   const resolvedExtraButlers = typeof extraButlers === "number" && extraButlers > 0 ? Math.floor(extraButlers) : 0;
   const butlers = meta.butlers + resolvedExtraButlers;
-  const total = calcConfirm({ plan, butlers, extraGuests, discount: 0 }).total;
-  const onsite = onsiteAmount(total, resolvedPaidAmount);
+  // 홈페이지가 금액을 보내면 그대로 쓴다: 홈페이지 총액에는 초과 식권이 없으므로(당일 실제 매수로
+  // 현장 정산) 추가 하객은 0으로 두고, 어드민 계산과 차이(테스트 결제 등)는 할인 금액으로 맞춘다.
+  const useHomepageAmounts = typeof totalAmount === "number" && totalAmount >= 0;
+  const extraGuests = useHomepageAmounts ? 0 : estimatedExtraGuests;
+  const computedTotal = calcConfirm({ plan, butlers, extraGuests, discount: 0 }).total;
+  const discount = useHomepageAmounts ? Math.max(0, computedTotal - totalAmount) : 0;
+  const total = computedTotal - discount;
+  const onsite =
+    useHomepageAmounts && typeof sentOnsite === "number" && sentOnsite >= 0
+      ? sentOnsite
+      : onsiteAmount(total, resolvedPaidAmount);
   const memoParts = [memo?.trim() ?? "", resolvedExtraButlers ? `버틀러 추가 ${resolvedExtraButlers}명` : ""].filter(Boolean);
 
   const created = await prisma.reservation.create({
@@ -107,7 +118,7 @@ export async function POST(req: NextRequest) {
       confirmVenue: venue.trim(),
       confirmButlers: butlers,
       confirmExtraGuests: extraGuests,
-      confirmDiscount: 0,
+      confirmDiscount: discount,
       confirmHours: "",
       confirmNote: "",
       paidAmount: resolvedPaidAmount,
