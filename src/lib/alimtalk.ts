@@ -81,7 +81,11 @@ export async function sendConfirmAlimtalk(payload: AlimtalkFields): Promise<{ se
       kakaoOptions: {
         pfId: process.env.SOLAPI_PF_ID!,
         templateId,
-        variables: { ...buildVariables(payload), "#{balanceAmount}": onsiteAmountText(payload.balanceAmount) },
+        variables: {
+          ...buildVariables(payload),
+          "#{paidAmount}": `${payload.paidAmount.toLocaleString("ko-KR")}원`,
+          "#{balanceAmount}": onsiteAmountText(payload.balanceAmount),
+        },
       },
     });
     logSendResult(payload.reservationId, result);
