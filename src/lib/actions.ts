@@ -4,9 +4,10 @@ import { getServerSession } from "next-auth";
 import { revalidatePath } from "next/cache";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import { calcConfirm, isPaymentType, planMeta } from "@/lib/pricing";
+import { calcConfirm, isPaymentType, onsiteAmount, paymentTypeName, planMeta, won } from "@/lib/pricing";
 import { formatWishDateLabel } from "@/lib/format";
 import { sendConfirmAlimtalk } from "@/lib/alimtalk";
+import { sendNewReservationKakaoWorkNotice } from "@/lib/kakaowork";
 import { requestPaymentCancel } from "@/lib/paymentCancel";
 
 async function requireSession() {
@@ -92,6 +93,19 @@ export async function confirmReservation(id: string, fields: ConfirmFieldsInput)
     balanceAmount: Math.max(0, price.total - updated.paidAmount),
   });
   await prisma.reservation.update({ where: { id }, data: { alimtalkAt: new Date() } });
+
+  // 운영팀 카카오워크 알림방(신규 예약 알림과 같은 방)에도 확정 사실을 알린다. 실패해도 확정은 유지된다.
+  const onsite = onsiteAmount(price.total, updated.paidAmount);
+  await sendNewReservationKakaoWorkNotice(
+    [
+      `${wasConfirmed ? "확정 내용 변경" : "예약 확정"} (${updated.id})`,
+      `고객: ${updated.customer} (${updated.couple}) · ${updated.phone}`,
+      `예식: ${formatWishDateLabel(updated.confirmDate, updated.confirmTime)} · ${updated.confirmVenue}`,
+      `플랜: ${updated.confirmPlan} · 버틀러 ${updated.confirmButlers}명`,
+      `결제: ${paymentTypeName(updated.paymentType, updated.paidAmount, price.total)} · 결제 ${won(updated.paidAmount)} · 현장(현금) ${won(onsite)}`,
+      `고객 알림톡: ${result.detail}`,
+    ].join("\n")
+  );
 
   revalidateAll();
   return {
