@@ -4,7 +4,7 @@ import { getServerSession } from "next-auth";
 import { revalidatePath } from "next/cache";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import { calcConfirm, isPaymentType, onsiteAmount, paymentTypeName, planMeta, won } from "@/lib/pricing";
+import { calcConfirm, isPaymentType, isSide, onsiteAmount, paymentTypeName, planMeta, won } from "@/lib/pricing";
 import { formatWishDateLabel } from "@/lib/format";
 import { sendConfirmAlimtalk } from "@/lib/alimtalk";
 import { sendNewReservationKakaoWorkNotice } from "@/lib/kakaowork";
@@ -182,6 +182,7 @@ export async function addNote(id: string, text: string) {
 export interface NewReservationInput {
   customer: string;
   couple: string;
+  side?: string;
   phone: string;
   wishDateLabel: string;
   venueLabel: string;
@@ -208,6 +209,7 @@ export async function createReservation(input: NewReservationInput) {
       id,
       customer: input.customer,
       couple: input.couple,
+      side: isSide(input.side) ? input.side : "",
       phone: input.phone,
       requestedAt: now,
       wishDateLabel: input.wishDateLabel,

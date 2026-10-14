@@ -14,6 +14,22 @@ export const PLANS: PlanMeta[] = [
   { key: "프리미엄", desc: "양가 각 200명 기준 · 웨딩버틀러 4명", butlers: 4, base: 800000, guestLimit: 400 },
 ];
 
+// 축의대 구분. 스몰케어·스탠다드는 한쪽(신랑측/신부측), 프리미엄은 양가.
+export const SIDES = ["신랑측", "신부측", "양가"] as const;
+export type Side = (typeof SIDES)[number];
+
+export function isSide(v: unknown): v is Side {
+  return typeof v === "string" && (SIDES as readonly string[]).includes(v);
+}
+
+/** 홈페이지가 보내는 값("groom" | "bride" | "both")을 어드민 표기로 바꾼다. 모르는 값은 "". */
+export function sideFromHomepage(v: unknown): Side | "" {
+  if (v === "groom") return "신랑측";
+  if (v === "bride") return "신부측";
+  if (v === "both") return "양가";
+  return "";
+}
+
 // Matches src/lib/plans.ts in the weddingbutler homepage repo — keep in sync.
 export const EXTRA_BUTLER_FEE = 100000;
 export const EXTRA_GUEST_FEE = 2000;

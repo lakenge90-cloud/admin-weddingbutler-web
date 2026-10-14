@@ -12,6 +12,7 @@ function buildDetail(r: NonNullable<Awaited<ReturnType<typeof loadReservation>>>
     id: r.id,
     customer: r.customer,
     couple: r.couple,
+    side: r.side,
     phone: r.phone,
     createdAtLabel: formatStamp(r.requestedAt),
     wishDateLabel: r.wishDateLabel,
@@ -110,6 +111,9 @@ export default async function ReservationsPage({
                 <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: "6px 8px" }}>
                   <span style={{ width: 8, height: 8, flex: "0 0 8px", borderRadius: "50%", background: row.badgeColor }} />
                   <span style={{ flex: "1 1 auto", minWidth: 0, fontSize: 14.5, fontWeight: 700, wordBreak: "keep-all" }}>{row.customer} 님</span>
+                  {row.side && (
+                    <span style={{ flex: "0 0 auto", padding: "3px 9px", borderRadius: 999, fontSize: 11, fontWeight: 700, background: "#FFFFFF", color: "#7A6F75", boxShadow: "inset 0 0 0 1px #E8E2E5" }}>{row.side}</span>
+                  )}
                   <span style={{ flex: "0 0 auto", padding: "3px 9px", borderRadius: 999, fontSize: 11, fontWeight: 700, background: row.badgeBg, color: row.badgeColor }}>{row.status}</span>
                 </div>
                 <div style={{ fontSize: 13, color: "#6E646A", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{row.venueLine}</div>

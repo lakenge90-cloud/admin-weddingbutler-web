@@ -20,6 +20,7 @@ export interface DetailReservation {
   id: string;
   customer: string;
   couple: string;
+  side: string;
   phone: string;
   createdAtLabel: string;
   wishDateLabel: string;
@@ -231,7 +232,7 @@ export default function ReservationDetail({
               <span style={{ color: "#8C8188" }}>예식장</span><span>{reservation.venueLabel}</span>
               <span style={{ color: "#8C8188" }}>배정 버틀러</span><span>{req.meta.butlers + reservation.requestedExtraButlers}명</span>
               <span style={{ color: "#8C8188" }}>예상 하객</span><span>{reservation.guestsLabel}</span>
-              <span style={{ color: "#8C8188" }}>예약자</span><span>{reservation.couple} · {reservation.phone}</span>
+              <span style={{ color: "#8C8188" }}>예약자</span><span>{reservation.couple}{reservation.side ? ` (${reservation.side})` : ""} · {reservation.phone}</span>
               <span style={{ color: "#8C8188" }}>요청 사항</span><span style={{ lineHeight: 1.6 }}>{reservation.memo}</span>
             </div>
 

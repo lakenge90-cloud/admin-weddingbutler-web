@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { waitUntil } from "@vercel/functions";
 import { prisma } from "@/lib/prisma";
-import { PAYMENT_TYPES, PLANS, calcConfirm, isPaymentType, onsiteAmount, planMeta, won } from "@/lib/pricing";
+import { PAYMENT_TYPES, PLANS, calcConfirm, isPaymentType, onsiteAmount, planMeta, sideFromHomepage, won } from "@/lib/pricing";
 import { formatWishDateLabel } from "@/lib/format";
 import { sendNewReservationAlimtalk } from "@/lib/alimtalk";
 import { sendNewReservationKakaoWorkNotice } from "@/lib/kakaowork";
@@ -12,6 +12,7 @@ interface IncomingBody {
   externalId?: string;
   customer?: string;
   couple?: string;
+  side?: string; // "groom" | "bride" | "both"
   phone?: string;
   weddingDate?: string; // "YYYY-MM-DD"
   weddingTime?: string; // "HH:MM"
@@ -59,7 +60,7 @@ export async function POST(req: NextRequest) {
     return badRequest("invalid JSON body");
   }
 
-  const { externalId, customer, couple, phone, weddingDate, weddingTime, venue, guestCount, plan, memo, paidAmount, paymentType, extraButlers, totalAmount, onsiteAmount: sentOnsite } = body;
+  const { externalId, customer, couple, side, phone, weddingDate, weddingTime, venue, guestCount, plan, memo, paidAmount, paymentType, extraButlers, totalAmount, onsiteAmount: sentOnsite } = body;
 
   if (!customer?.trim()) return badRequest("customer is required");
   if (!couple?.trim()) return badRequest("couple is required");
@@ -104,6 +105,7 @@ export async function POST(req: NextRequest) {
       id,
       customer: customer.trim(),
       couple: couple.trim(),
+      side: sideFromHomepage(side),
       phone: phone.trim(),
       requestedAt: new Date(),
       wishDateLabel: formatWishDateLabel(weddingDate, weddingTime),
@@ -152,7 +154,7 @@ export async function POST(req: NextRequest) {
     sendNewReservationKakaoWorkNotice(
       [
         `신규 예약 신청 (${created.id})`,
-        `고객: ${created.customer} (${created.couple}) · ${created.phone}`,
+        `고객: ${created.customer} (${created.couple})${created.side ? ` · ${created.side}` : ""} · ${created.phone}`,
         `예식: ${created.wishDateLabel} · ${created.venueLabel}`,
         `플랜: ${created.requestedPlan}${resolvedExtraButlers ? ` (버틀러 추가 ${resolvedExtraButlers}명)` : ""}`,
         `결제: ${resolvedPaymentType ? PAYMENT_TYPES[resolvedPaymentType].name : "유형 미지정"} · 결제 ${won(created.paidAmount)} · 현장(현금) ${won(onsite)}`,

@@ -3,7 +3,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import { PAYMENT_TYPES, PLANS, type PaymentType } from "@/lib/pricing";
+import { PAYMENT_TYPES, PLANS, SIDES, type PaymentType } from "@/lib/pricing";
 import { createReservation } from "@/lib/actions";
 import { toNum } from "@/lib/format";
 import { useToast } from "./ToastContext";
@@ -19,9 +19,9 @@ export default function ReservationListControls({ currentFilter }: { currentFilt
   const [open, setOpen] = useState(false);
   const [saving, setSaving] = useState(false);
   const [form, setForm] = useState<{
-    customer: string; couple: string; phone: string; wishDateLabel: string; venueLabel: string; guestsLabel: string; memo: string; requestedPlan: string; paidAmount: string; paymentType: string;
+    customer: string; couple: string; side: string; phone: string; wishDateLabel: string; venueLabel: string; guestsLabel: string; memo: string; requestedPlan: string; paidAmount: string; paymentType: string;
   }>({
-    customer: "", couple: "", phone: "", wishDateLabel: "", venueLabel: "", guestsLabel: "", memo: "", requestedPlan: PLANS[1].key, paidAmount: "0", paymentType: "",
+    customer: "", couple: "", side: "", phone: "", wishDateLabel: "", venueLabel: "", guestsLabel: "", memo: "", requestedPlan: PLANS[1].key, paidAmount: "0", paymentType: "",
   });
 
   function filterHref(label: string) {
@@ -41,7 +41,7 @@ export default function ReservationListControls({ currentFilter }: { currentFilt
     const res = await createReservation({ ...form, paidAmount: toNum(form.paidAmount) });
     setSaving(false);
     setOpen(false);
-    setForm({ customer: "", couple: "", phone: "", wishDateLabel: "", venueLabel: "", guestsLabel: "", memo: "", requestedPlan: PLANS[1].key, paidAmount: "0", paymentType: "" });
+    setForm({ customer: "", couple: "", side: "", phone: "", wishDateLabel: "", venueLabel: "", guestsLabel: "", memo: "", requestedPlan: PLANS[1].key, paidAmount: "0", paymentType: "" });
     showToast("새 예약이 등록되었습니다.");
     router.push(`/reservations?id=${res.id}`);
   }
@@ -81,6 +81,13 @@ export default function ReservationListControls({ currentFilter }: { currentFilt
             <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
               <label style={{ fontSize: 12.5, fontWeight: 600, color: "#6E646A", display: "flex", flexDirection: "column", gap: 6 }}>
                 예약자(신부/신랑) <input style={inputStyle} value={form.couple} onChange={(e) => setForm((f) => ({ ...f, couple: e.target.value }))} placeholder="박준호 · 이서연" />
+              </label>
+              <label style={{ fontSize: 12.5, fontWeight: 600, color: "#6E646A", display: "flex", flexDirection: "column", gap: 6 }}>
+                축의대 구분
+                <select style={inputStyle} value={form.side} onChange={(e) => setForm((f) => ({ ...f, side: e.target.value }))}>
+                  <option value="">미지정</option>
+                  {SIDES.map((s) => <option key={s} value={s}>{s}</option>)}
+                </select>
               </label>
               <label style={{ fontSize: 12.5, fontWeight: 600, color: "#6E646A", display: "flex", flexDirection: "column", gap: 6 }}>
                 고객명(대표) <input style={inputStyle} value={form.customer} onChange={(e) => setForm((f) => ({ ...f, customer: e.target.value }))} placeholder="이서연" />

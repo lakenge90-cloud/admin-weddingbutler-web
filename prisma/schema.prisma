@@ -21,6 +21,8 @@ model Reservation {
   id             String   @id
   customer       String
   couple         String
+  // 축의대 구분: "신랑측" | "신부측" | "양가"(프리미엄) | ""(이전 예약)
+  side           String   @default("")
   phone          String
   requestedAt    DateTime
   wishDateLabel  String
