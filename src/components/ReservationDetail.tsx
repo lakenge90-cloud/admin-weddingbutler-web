@@ -8,7 +8,7 @@ import { BADGE } from "@/lib/badge";
 import { toNum } from "@/lib/format";
 import { useIsMobile } from "@/lib/useIsMobile";
 import { useToast } from "./ToastContext";
-import { confirmReservation, holdReservation, addNote, resendAlimtalk, saveConfirmFields, cancelReservation } from "@/lib/actions";
+import { confirmReservation, holdReservation, addNote, resendAlimtalk, saveConfirmFields, cancelReservation, reopenReservation } from "@/lib/actions";
 
 export interface DetailNote {
   id: string;
@@ -122,13 +122,16 @@ export default function ReservationDetail({
   const badge = BADGE[reservation.status] ?? BADGE["신규요청"];
   const isConfirmed = reservation.status === "확정";
   const isCancelled = reservation.status === "취소";
+  // 확정된 예약은 잠그고, 고치려면 재협의로 되돌린다
+  const locked = isConfirmed;
   const cancelReason = reasonType === "고객요청" ? "고객요청" : customReason.trim();
 
   function field(key: keyof typeof fields) {
     return {
       value: fields[key],
+      readOnly: locked,
       onChange: (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => setFields((f) => ({ ...f, [key]: e.target.value })),
-      onBlur: () => startTransition(() => { saveConfirmFields(reservation.id, parsedFields); }),
+      onBlur: () => { if (!locked) startTransition(() => { saveConfirmFields(reservation.id, parsedFields); }); },
     };
   }
 
@@ -146,6 +149,14 @@ export default function ReservationDetail({
   function onHoldClick() {
     startTransition(async () => {
       const res = await holdReservation(reservation.id);
+      showToast(res.message);
+    });
+  }
+
+  function onReopenClick() {
+    if (!window.confirm("재협의로 바꾸면 협의중 상태가 되고 캘린더에서 빠집니다. 내용을 고친 뒤 다시 확정해 주세요.")) return;
+    startTransition(async () => {
+      const res = await reopenReservation(reservation.id);
       showToast(res.message);
     });
   }
@@ -188,7 +199,7 @@ export default function ReservationDetail({
     });
   }
 
-  const inputStyle: React.CSSProperties = { border: 0, background: "#F6F3F5", borderRadius: 12, padding: "12px 14px", fontSize: 13.5, color: "#1E1A1C", width: "100%", boxSizing: "border-box" };
+  const inputStyle: React.CSSProperties = { border: 0, background: "#F6F3F5", borderRadius: 12, padding: "12px 14px", fontSize: 13.5, color: locked ? "#6E646A" : "#1E1A1C", width: "100%", boxSizing: "border-box" };
   const labelStyle: React.CSSProperties = { display: "flex", flexDirection: "column", gap: 6, fontSize: 12.5, fontWeight: 600, color: "#6E646A" };
 
   return (
@@ -294,7 +305,7 @@ export default function ReservationDetail({
 
         <section style={{ background: "#FFFFFF", border: "1px solid #EFEBED", borderRadius: 18, padding: 24 }}>
           <h2 style={{ margin: "0 0 4px", fontSize: 15, fontWeight: 800 }}>확정 내용</h2>
-          <p style={{ margin: "0 0 20px", fontSize: 12.5, color: "#8C8188" }}>협의된 내용을 최종 입력한 뒤 확정하세요.</p>
+          <p style={{ margin: "0 0 20px", fontSize: 12.5, color: "#8C8188" }}>{locked ? "확정된 내용입니다. 고치려면 재협의를 눌러 주세요." : "협의된 내용을 최종 입력한 뒤 확정하세요."}</p>
 
           <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(148px, 1fr))", gap: 14 }}>
             <label style={labelStyle}>예식일<input {...field("date")} style={inputStyle} /></label>
@@ -306,6 +317,7 @@ export default function ReservationDetail({
             <label style={labelStyle}>결제 방식
               <select
                 value={fields.paymentType}
+                disabled={locked}
                 onChange={(e) => {
                   const v = e.target.value;
                   setFields((f) => ({ ...f, paymentType: v }));
@@ -356,10 +368,17 @@ export default function ReservationDetail({
             </div>
           )}
 
-          {!isCancelled && (
+          {isConfirmed && (
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 10, marginTop: 20 }}>
+            <button disabled={isPending} onClick={onReopenClick} style={{ flex: 1, height: 52, border: 0, borderRadius: 14, background: "#F6F3F5", color: "#6E646A", fontSize: 15, fontWeight: 700, opacity: isPending ? 0.7 : 1 }}>재협의</button>
+            <button disabled={isPending} onClick={openCancel} style={{ height: 52, padding: "0 20px", border: "1px solid #E7C9C9", borderRadius: 14, background: "#FFFFFF", color: "#B04A4A", fontSize: 14.5, fontWeight: 700 }}>예약 취소</button>
+          </div>
+          )}
+
+          {!isCancelled && !isConfirmed && (
           <div style={{ display: "flex", flexWrap: "wrap", gap: 10, marginTop: 20 }}>
             <button disabled={isPending} onClick={onConfirmClick} style={{ flex: 1, height: 52, border: 0, borderRadius: 14, background: "#B0567E", color: "#fff", fontSize: 15, fontWeight: 700, opacity: isPending ? 0.7 : 1 }}>
-              {isConfirmed ? "확정 내용 저장" : "확정하기"}
+              확정하기
             </button>
             <button disabled={isPending} onClick={onHoldClick} style={{ height: 52, padding: "0 20px", border: 0, borderRadius: 14, background: "#F6F3F5", color: "#6E646A", fontSize: 14.5, fontWeight: 600 }}>협의 중</button>
           </div>
@@ -388,7 +407,7 @@ export default function ReservationDetail({
               </button>
             </div>
           )}
-          {!isCancelled && (
+          {!isCancelled && !isConfirmed && (
             <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 14 }}>
               <button disabled={isPending} onClick={openCancel} style={{ height: 40, padding: "0 14px", border: "1px solid #E7C9C9", borderRadius: 12, background: "#FFFFFF", color: "#B04A4A", fontSize: 13, fontWeight: 700 }}>
                 예약 취소

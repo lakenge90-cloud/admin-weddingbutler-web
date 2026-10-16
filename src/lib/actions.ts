@@ -37,8 +37,9 @@ export interface ConfirmFieldsInput {
 
 export async function saveConfirmFields(id: string, fields: ConfirmFieldsInput) {
   await requireSession();
-  await prisma.reservation.update({
-    where: { id },
+  // 확정된 예약은 재협의로 되돌린 뒤에만 고칠 수 있다
+  await prisma.reservation.updateMany({
+    where: { id, status: { not: "확정" } },
     data: {
       confirmDate: fields.date,
       confirmTime: fields.time,
@@ -114,6 +115,14 @@ export async function confirmReservation(id: string, fields: ConfirmFieldsInput)
       : `${updated.customer} 님 예약이 확정되어 캘린더에 등록되었습니다.`,
     alimtalk: result,
   };
+}
+
+/** 확정된 예약을 협의중으로 되돌려 확정 내용을 다시 고칠 수 있게 한다 */
+export async function reopenReservation(id: string) {
+  await requireSession();
+  const { count } = await prisma.reservation.updateMany({ where: { id, status: "확정" }, data: { status: "협의중" } });
+  revalidateAll();
+  return { message: count ? "재협의 상태로 바꿨습니다. 내용을 고친 뒤 다시 확정해 주세요." : "확정된 예약이 아닙니다." };
 }
 
 export async function holdReservation(id: string) {
