@@ -37,8 +37,13 @@ export function recordApiKey() {
   return process.env.RECORD_API_KEY || process.env.RESERVATION_API_KEY || "";
 }
 
+/** 고객 기록 페이지 도메인. 홈페이지가 report.weddingbutler.co.kr/<토큰> 을 기록 화면으로 연결한다. */
+export function reportUrl() {
+  return (process.env.REPORT_URL || "https://report.weddingbutler.co.kr").replace(/\/$/, "");
+}
+
 export function customerUrl(token: string) {
-  return `${homepageUrl()}/r/${token}`;
+  return `${reportUrl()}/${token}`;
 }
 
 function hmac(value: string) {

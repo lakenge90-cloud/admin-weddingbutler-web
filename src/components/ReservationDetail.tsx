@@ -371,7 +371,7 @@ export default function ReservationDetail({
                 <div style={{ fontWeight: 700, color: "#413A3E" }}>축의 기록</div>
                 <span style={{ color: "#8C8188" }}>{RECORD_STATUS_TEXT[reservation.recordStatus]}</span>
               </div>
-              <Link href={`/reservations/${reservation.id}/record`} style={{ flex: "0 0 auto", height: 40, padding: "0 16px", display: "inline-flex", alignItems: "center", border: "1px solid #D9A3BC", borderRadius: 12, background: "#FFFFFF", color: "#8A3F61", fontSize: 13, fontWeight: 700 }}>
+              <Link href={`/reservations/${reservation.id}/record`} target="_blank" rel="noopener" style={{ flex: "0 0 auto", height: 40, padding: "0 16px", display: "inline-flex", alignItems: "center", border: "1px solid #D9A3BC", borderRadius: 12, background: "#FFFFFF", color: "#8A3F61", fontSize: 13, fontWeight: 700 }}>
                 {reservation.recordStatus === "none" ? "기록 만들기" : "기록 관리"}
               </Link>
             </div>
