@@ -51,12 +51,12 @@ function buildVariables(f: AlimtalkFields): Record<string, string> {
 }
 
 /** 신규예약 고객 알림톡의 "결제금액" 값. 템플릿을 다시 검수받지 않으려고 기존 #{paidAmount} 값 뒤에
- * 현장결제 안내를 붙인다 — 전액결제면 현장결제 0원(하객 수 초과 시 변동), 아니면 현장 현금 결제 금액. */
+ * 결제 유형을 붙인다 — 전액결제면 "(전액결제)", 아니면 현장결제 금액.
+ * 이 값은 템플릿의 아이템 항목이라 카카오가 23자를 넘으면 거절한다(3076). 넘으면 금액만 보낸다. */
 export function paidAmountWithOnsite(paidAmount: number, balanceAmount: number): string {
-  const paid = paidAmount.toLocaleString("ko-KR");
-  return balanceAmount > 0
-    ? `${paid}원 (현장결제 ${balanceAmount.toLocaleString("ko-KR")}원, 현금)`
-    : `${paid}원 (현장결제 0원, 하객 수 초과 시 변동)`;
+  const paid = `${paidAmount.toLocaleString("ko-KR")}원`;
+  const text = balanceAmount > 0 ? `${paid} (현장 ${balanceAmount.toLocaleString("ko-KR")}원)` : `${paid} (전액결제)`;
+  return text.length <= 23 ? text : paid;
 }
 
 /** 예약 확정 알림톡의 "현장결제금액"(#{balanceAmount}) 값 — 전액결제면 하객 수 초과 시 변동 안내, 아니면 현금 결제 안내. */
