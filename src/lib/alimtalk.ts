@@ -156,3 +156,38 @@ export async function sendNewReservationAlimtalk(payload: AlimtalkFields): Promi
     console.error(`[alimtalk] Solapi new-reservation send failed for ${payload.reservationId}`, err);
   }
 }
+
+export type ReminderKind = "7d" | "day";
+
+/** 예식 7일 전 / 당일 리마인더 알림톡. 변수는 확정 알림톡과 같은 값을 보낸다. */
+export async function sendReminderAlimtalk(kind: ReminderKind, payload: AlimtalkFields): Promise<{ sent: boolean; detail: string }> {
+  const svc = client();
+  const from = process.env.SOLAPI_SENDER_PHONE;
+  const pfId = process.env.SOLAPI_PF_ID;
+  const templateId = kind === "7d" ? process.env.SOLAPI_TEMPLATE_REMIND_7D : process.env.SOLAPI_TEMPLATE_REMIND_DAY;
+  if (!svc || !from || !pfId || !templateId) {
+    console.warn(`[alimtalk] Solapi env vars not fully set — skipping ${kind} reminder for ${payload.reservationId}.`);
+    return { sent: false, detail: "미설정" };
+  }
+  try {
+    const result = await svc.send({
+      to: digitsOnly(payload.phone),
+      from,
+      kakaoOptions: {
+        pfId,
+        templateId,
+        variables: {
+          ...buildVariables(payload),
+          "#{paidAmount}": `${payload.paidAmount.toLocaleString("ko-KR")}원`,
+          "#{balanceAmount}": onsiteAmountText(payload.balanceAmount),
+        },
+      },
+    });
+    logSendResult(payload.reservationId, result);
+    if (result.failedMessageList.length > 0) return { sent: false, detail: "전송 실패" };
+    return { sent: true, detail: "전송 완료" };
+  } catch (err) {
+    console.error(`[alimtalk] Solapi ${kind} reminder failed for ${payload.reservationId}`, err);
+    return { sent: false, detail: "전송 실패" };
+  }
+}
