@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import { calcConfirm, EXTRA_BUTLER_FEE, onsiteAmount, PAYMENT_TYPES, paymentTypeName, requestedTotal, resolvePaymentType, won, type PaymentType } from "@/lib/pricing";
 import { BADGE } from "@/lib/badge";
 import { toNum } from "@/lib/format";
+import { refundQuote } from "@/lib/refundPolicy";
 import { useIsMobile } from "@/lib/useIsMobile";
 import { useToast } from "./ToastContext";
 import { confirmReservation, holdReservation, addNote, resendAlimtalk, saveConfirmFields, cancelReservation, reopenReservation } from "@/lib/actions";
@@ -73,6 +74,7 @@ export default function ReservationDetail({
   const [reasonType, setReasonType] = useState<"고객요청" | "직접입력">("고객요청");
   const [customReason, setCustomReason] = useState("");
   const [noPaymentMessage, setNoPaymentMessage] = useState<string | null>(null);
+  const [refundDraft, setRefundDraft] = useState("");
 
   const [fields, setFields] = useState({
     date: reservation.confirm.date,
@@ -125,6 +127,8 @@ export default function ReservationDetail({
   // 확정된 예약은 잠그고, 고치려면 재협의로 되돌린다
   const locked = isConfirmed;
   const cancelReason = reasonType === "고객요청" ? "고객요청" : customReason.trim();
+  const quote = refundQuote(reservation.confirm.date, reservation.paidAmount);
+  const refundAmount = toNum(refundDraft);
 
   function field(key: keyof typeof fields) {
     return {
@@ -174,13 +178,15 @@ export default function ReservationDetail({
     setReasonType("고객요청");
     setCustomReason("");
     setNoPaymentMessage(null);
+    setRefundDraft(String(refundQuote(reservation.confirm.date, reservation.paidAmount).amount));
     setCancelOpen(true);
   }
 
   function onCancelSubmit(skipPayment: boolean) {
     if (!cancelReason) { showToast("취소 사유를 입력해 주세요."); return; }
+    if (refundAmount > reservation.paidAmount) { showToast(`환불 금액은 결제금액(${won(reservation.paidAmount)})을 넘을 수 없습니다.`); return; }
     startTransition(async () => {
-      const res = await cancelReservation(reservation.id, cancelReason, skipPayment);
+      const res = await cancelReservation(reservation.id, cancelReason, skipPayment, refundAmount);
       if (res.ok) {
         setCancelOpen(false);
         showToast(res.message);
@@ -422,7 +428,18 @@ export default function ReservationDetail({
           <div onClick={(e) => e.stopPropagation()} style={{ width: "100%", maxWidth: 420, background: "#FFFFFF", borderRadius: 18, padding: 24, boxSizing: "border-box" }}>
             <h2 style={{ margin: "0 0 6px", fontSize: 17, fontWeight: 800 }}>예약 취소</h2>
             <p style={{ margin: "0 0 18px", fontSize: 13, lineHeight: 1.6, color: "#6E646A" }}>
-              {reservation.customer} 님 예약({reservation.id})을 취소하고, 이니시스에 결제금액 전액(어드민 기록 {won(reservation.paidAmount)}) 취소를 요청합니다. 결제취소는 되돌릴 수 없습니다.
+              {reservation.customer} 님 예약({reservation.id})을 취소하고, 이니시스에 아래 환불 금액만큼 결제취소를 요청합니다. 고객에게 취소 알림톡이 갑니다. 결제취소는 되돌릴 수 없습니다.
+            </p>
+
+            <div style={{ fontSize: 12.5, fontWeight: 700, color: "#6E646A", marginBottom: 8 }}>환불 금액</div>
+            <input
+              inputMode="numeric"
+              value={refundDraft}
+              onChange={(e) => setRefundDraft(e.target.value.replace(/[^0-9]/g, ""))}
+              style={{ ...inputStyle, color: "#1E1A1C", marginBottom: 6 }}
+            />
+            <p style={{ margin: "0 0 18px", fontSize: 12, lineHeight: 1.6, color: "#8A8086" }}>
+              결제 {won(reservation.paidAmount)} · 약관 기준 {quote.label} {won(quote.amount)}. 재배정·회사 사정·천재지변 등은 전액으로 고쳐 주세요. 0원이면 결제취소 없이 예약만 취소합니다.
             </p>
 
             <div style={{ fontSize: 12.5, fontWeight: 700, color: "#6E646A", marginBottom: 8 }}>취소 사유</div>
@@ -460,7 +477,7 @@ export default function ReservationDetail({
                 onClick={() => onCancelSubmit(Boolean(noPaymentMessage))}
                 style={{ flex: 1.4, height: 46, border: 0, borderRadius: 12, background: "#B04A4A", color: "#fff", fontSize: 14, fontWeight: 700, opacity: isPending || !cancelReason ? 0.6 : 1 }}
               >
-                {isPending ? "처리 중…" : noPaymentMessage ? "예약만 취소" : "취소하고 결제취소 요청"}
+                {isPending ? "처리 중…" : noPaymentMessage || refundAmount === 0 ? "예약만 취소" : `취소하고 ${won(refundAmount)} 환불`}
               </button>
             </div>
           </div>

@@ -9,7 +9,14 @@ export type PaymentCancelResult =
   | { state: "no_payment"; message: string }
   | { state: "error"; message: string };
 
-export async function requestPaymentCancel(bookingNo: string, reason: string): Promise<PaymentCancelResult> {
+export interface PaymentCancelOptions {
+  /** 환불할 금액(원). 결제금액 이상이거나 생략하면 전액 취소, 그보다 적으면 부분취소 */
+  amount?: number;
+  /** 포트원에 남는 취소 요청자 */
+  requester?: "ADMIN" | "CUSTOMER";
+}
+
+export async function requestPaymentCancel(bookingNo: string, reason: string, opts: PaymentCancelOptions = {}): Promise<PaymentCancelResult> {
   const apiKey = process.env.RESERVATION_API_KEY;
   if (!apiKey) return { state: "error", message: "RESERVATION_API_KEY가 설정되지 않아 결제취소를 요청할 수 없습니다." };
 
@@ -18,7 +25,7 @@ export async function requestPaymentCancel(bookingNo: string, reason: string): P
     res = await fetch(`${homepageUrl()}/api/reservations/cancel`, {
       method: "POST",
       headers: { "Content-Type": "application/json", Authorization: `Bearer ${apiKey}` },
-      body: JSON.stringify({ bookingNo, reason }),
+      body: JSON.stringify({ bookingNo, reason, amount: opts.amount, requester: opts.requester }),
       cache: "no-store",
     });
   } catch (err) {

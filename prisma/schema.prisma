@@ -125,3 +125,16 @@ model RecordAccess {
 
   @@index([recordLinkId, kind, createdAt])
 }
+
+// 홈페이지 예약 조회(휴대폰 번호) 문자 인증번호. phone은 숫자만.
+model LookupOtp {
+  id         String    @id @default(cuid())
+  phone      String
+  codeHash   String
+  expiresAt  DateTime
+  attempts   Int       @default(0)
+  verifiedAt DateTime?
+  createdAt  DateTime  @default(now())
+
+  @@index([phone, createdAt])
+}

@@ -9,6 +9,7 @@ import { formatWishDateLabel } from "@/lib/format";
 import { sendConfirmAlimtalk } from "@/lib/alimtalk";
 import { sendNewReservationKakaoWorkNotice } from "@/lib/kakaowork";
 import { requestPaymentCancel } from "@/lib/paymentCancel";
+import { claimCancel, finishCancel, releaseCancel } from "@/lib/cancel";
 
 async function requireSession() {
   const session = await getServerSession(authOptions);
@@ -136,10 +137,11 @@ export type CancelResult =
   | { ok: true; message: string }
   | { ok: false; needsNoPaymentConfirm: boolean; message: string };
 
-// 예약 취소. 기본은 홈페이지를 통해 이니시스 결제를 전액 취소한 뒤 상태를 "취소"로 바꾼다.
+// 예약 취소. 기본은 홈페이지를 통해 이니시스 결제를 refundAmount만큼(결제금액 이상이면 전액) 취소한 뒤
+// 상태를 "취소"로 바꾸고 고객에게 취소 알림톡을 보낸다. refundAmount가 0이면 결제취소 없이 예약만 취소한다.
 // 홈페이지에 결제 완료 기록이 없으면(수동 등록 건 등) needsNoPaymentConfirm으로 알려 주고,
 // 운영자가 다시 확인하면 skipPayment로 결제취소 없이 예약만 취소한다.
-export async function cancelReservation(id: string, reason: string, skipPayment = false): Promise<CancelResult> {
+export async function cancelReservation(id: string, reason: string, skipPayment = false, refundAmount?: number): Promise<CancelResult> {
   await requireSession();
   const trimmed = reason.trim();
   if (!trimmed) return { ok: false, needsNoPaymentConfirm: false, message: "취소 사유를 입력해 주세요." };
@@ -147,30 +149,24 @@ export async function cancelReservation(id: string, reason: string, skipPayment 
   const existing = await prisma.reservation.findUniqueOrThrow({ where: { id } });
   if (existing.status === "취소") return { ok: false, needsNoPaymentConfirm: false, message: "이미 취소된 예약입니다." };
 
-  let refundAmount = 0;
-  if (!skipPayment) {
-    const result = await requestPaymentCancel(id, trimmed);
+  const wanted = refundAmount === undefined ? existing.paidAmount : Math.max(0, Math.floor(refundAmount));
+  if (!(await claimCancel(id))) return { ok: false, needsNoPaymentConfirm: false, message: "이 예약의 취소가 이미 진행 중입니다. 잠시 후 새로고침해 주세요." };
+  let refunded = 0;
+  let paymentCancelled = false;
+  if (!skipPayment && wanted > 0) {
+    const result = await requestPaymentCancel(id, trimmed, { amount: wanted, requester: "ADMIN" });
+    if (result.state !== "cancelled") await releaseCancel(id);
     if (result.state === "error") return { ok: false, needsNoPaymentConfirm: false, message: result.message };
     if (result.state === "no_payment") return { ok: false, needsNoPaymentConfirm: true, message: result.message };
-    refundAmount = result.refundAmount;
+    refunded = result.refundAmount;
+    paymentCancelled = true;
   }
 
-  await prisma.reservation.update({
-    where: { id },
-    data: { status: "취소", cancelReason: trimmed, cancelledAt: new Date(), refundAmount },
-  });
-  await prisma.note.create({
-    data: {
-      reservationId: id,
-      text: skipPayment
-        ? `예약 취소 (결제취소 없음) · 사유: ${trimmed}`
-        : `예약 취소 · 결제 ${refundAmount.toLocaleString("ko-KR")}원 환불 요청 · 사유: ${trimmed}`,
-    },
-  });
+  const { alimtalk } = await finishCancel(existing, { reason: trimmed, refundAmount: refunded, paymentCancelled, by: "admin" });
   revalidateAll();
   return {
     ok: true,
-    message: skipPayment ? "예약을 취소했습니다." : "예약을 취소하고 이니시스에 결제취소를 요청했습니다.",
+    message: `${paymentCancelled ? `예약을 취소하고 이니시스에 ${won(refunded)} 결제취소를 요청했습니다.` : "예약을 취소했습니다."} (취소 알림톡 ${alimtalk})`,
   };
 }
 

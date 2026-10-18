@@ -191,3 +191,42 @@ export async function sendReminderAlimtalk(kind: ReminderKind, payload: Alimtalk
     return { sent: false, detail: "전송 실패" };
   }
 }
+
+/** 예약 취소 알림톡. #{refundAmount}에는 실제 환불(결제취소)한 금액, #{cancelReason}에는 취소 사유를 보낸다. */
+export async function sendCancelAlimtalk(
+  payload: AlimtalkFields & { refundAmount: number; cancelReason: string }
+): Promise<{ sent: boolean; detail: string }> {
+  const svc = client();
+  const from = process.env.SOLAPI_SENDER_PHONE;
+  const pfId = process.env.SOLAPI_PF_ID;
+  const templateId = process.env.SOLAPI_TEMPLATE_CANCELLED;
+  if (!svc || !from || !pfId || !templateId) {
+    console.warn(`[alimtalk] Solapi env vars not fully set — skipping cancel send for ${payload.reservationId}.`);
+    return { sent: false, detail: "미설정" };
+  }
+  try {
+    const result = await svc.send({
+      to: digitsOnly(payload.phone),
+      from,
+      kakaoOptions: {
+        pfId,
+        templateId,
+        // 카카오 아이템 리스트 값은 23자까지라(초과 시 3076 오류) 표에 들어갈 수 있는 값은 잘라 보낸다.
+        variables: Object.fromEntries(
+          Object.entries({
+            ...buildVariables(payload),
+            "#{paidAmount}": `${payload.paidAmount.toLocaleString("ko-KR")}원`,
+            "#{refundAmount}": `${payload.refundAmount.toLocaleString("ko-KR")}원`,
+            "#{cancelReason}": payload.cancelReason,
+          }).map(([k, v]) => [k, Array.from(v).length > 23 ? `${Array.from(v).slice(0, 22).join("")}…` : v])
+        ),
+      },
+    });
+    logSendResult(payload.reservationId, result);
+    if (result.failedMessageList.length > 0) return { sent: false, detail: "전송 실패" };
+    return { sent: true, detail: "전송 완료" };
+  } catch (err) {
+    console.error(`[alimtalk] Solapi cancel send failed for ${payload.reservationId}`, err);
+    return { sent: false, detail: "전송 실패" };
+  }
+}
