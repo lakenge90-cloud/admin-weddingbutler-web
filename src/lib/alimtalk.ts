@@ -216,6 +216,7 @@ export async function sendCancelAlimtalk(
         variables: Object.fromEntries(
           Object.entries({
             ...buildVariables(payload),
+            "#{planAmount}": `${payload.planAmount.toLocaleString("ko-KR")}원`,
             "#{paidAmount}": `${payload.paidAmount.toLocaleString("ko-KR")}원`,
             "#{refundAmount}": `${payload.refundAmount.toLocaleString("ko-KR")}원`,
             "#{cancelReason}": payload.cancelReason,
